@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Prompter">
+  <meta name="theme-color" content="#000000">
+  <title>Teleprompter</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============================== EDITOR ============================== -->
+  <section id="editor" class="view active">
+    <header class="topbar">
+      <div class="brand"><span class="dot">●</span> Teleprompter</div>
+      <div class="actions">
+        <button class="btn" data-action="import" title="Import .docx, .rtf or .txt">⤓ Import</button>
+        <button class="btn" data-action="clear">Clear</button>
+        <button class="btn icon" data-action="theme" title="Light / dark mode">◐</button>
+        <button class="btn icon" data-action="settings" title="Settings">⚙︎</button>
+        <button class="btn primary" data-action="start">Start Prompter ▶</button>
+      </div>
+      <input type="file" id="fileInput" class="visually-hidden"
+             accept=".docx,.rtf,.txt,.text,.md,text/plain,text/rtf,application/rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+    </header>
+
+    <main class="editor-main">
+      <textarea id="script" spellcheck="true"
+        placeholder="Paste or type your script here, or import a .docx, .rtf or .txt file (you can also drag &amp; drop a file onto the page)."></textarea>
+    </main>
+
+    <footer class="statusbar">
+      <span id="stats">0 words</span>
+      <span id="importStatus"></span>
+      <span class="pad" data-pad-indicator>🎮 No controller</span>
+    </footer>
+
+    <div id="dropOverlay"><div>Drop .docx, .rtf or .txt to import</div></div>
+  </section>
+
+  <!-- ============================= PROMPTER ============================= -->
+  <section id="prompter" class="view">
+    <div id="stage">
+      <!-- Everything inside #mirror is flipped when mirroring is on, so the talent reads it correctly in the glass -->
+      <div id="mirror">
+        <div id="scroller"><div id="text"></div></div>
+        <div id="marker">
+          <div class="band"></div>
+          <div class="arrow l"></div>
+          <div class="arrow r"></div>
+        </div>
+        <div class="fade top"></div>
+        <div class="fade bottom"></div>
+        <div id="countdown"></div>
+        <div id="toast"></div>
+      </div>
+      <div id="progress"><div id="progressFill"></div></div>
+    </div>
+
+    <div id="controls">
+      <div class="ctl-group">
+        <button class="btn" data-action="edit" title="Back to editor (E)">✎ Edit</button>
+      </div>
+      <div class="ctl-group">
+        <button class="btn icon" data-action="top" title="Back to top (Home)">⤒</button>
+        <button class="btn icon" data-action="back" title="Jump back">▲</button>
+        <button class="btn primary" id="playBtn" data-action="play" title="Play / pause (Space)">▶ Play</button>
+        <button class="btn icon" data-action="fwd" title="Jump forward">▼</button>
+      </div>
+      <div class="ctl-group">
+        <span class="lbl">Speed</span>
+        <button class="btn icon" data-action="speedDown" title="Slower">−</button>
+        <span class="val" id="speedVal">4</span>
+        <button class="btn icon" data-action="speedUp" title="Faster">+</button>
+      </div>
+      <div class="ctl-group">
+        <span class="lbl">Size</span>
+        <button class="btn icon" data-action="fontDown" title="Smaller text">A−</button>
+        <span class="val" id="sizeVal">72</span>
+        <button class="btn icon" data-action="fontUp" title="Larger text">A+</button>
+      </div>
+      <div class="ctl-group">
+        <button class="btn icon" data-action="mirrorX" title="Mirror horizontally (M)">⇋</button>
+        <button class="btn icon" data-action="mirrorY" title="Flip vertically (V)">⇅</button>
+        <button class="btn icon" data-action="theme" title="Light / dark (T)">◐</button>
+        <button class="btn icon" data-action="fullscreen" title="Fullscreen (F)">⛶</button>
+        <button class="btn icon" data-action="settings" title="Settings">⚙︎</button>
+      </div>
+      <div class="ctl-group meta">
+        <span class="val time" id="timeLeft" title="Time remaining at current speed">0:00</span>
+        <span class="pad" data-pad-indicator>🎮</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================= SETTINGS ============================= -->
+  <div id="backdrop" data-action="closeSettings"></div>
+  <aside id="settings" aria-label="Settings">
+    <div class="settings-head">
+      <h2>Settings</h2>
+      <button class="btn icon" data-action="closeSettings" title="Close">✕</button>
+    </div>
+    <div class="settings-body">
+      <h3>Scrolling</h3>
+      <label class="row"><span>Speed <output data-out="speed"></output></span>
+        <input type="range" min="0.25" max="20" step="0.25" data-setting="speed"></label>
+      <label class="row inline"><span>Speed change per click</span>
+        <select data-setting="speedStep">
+          <option value="0.25">0.25</option><option value="0.5">0.5</option>
+          <option value="1">1</option><option value="2">2</option>
+        </select></label>
+      <label class="row"><span>Countdown when starting from top <output data-out="countdown"></output></span>
+        <input type="range" min="0" max="10" step="1" data-setting="countdown"></label>
+      <label class="row"><span>Jump distance <output data-out="jumpLines"></output></span>
+        <input type="range" min="1" max="10" step="1" data-setting="jumpLines"></label>
+
+      <h3>Text</h3>
+      <label class="row"><span>Font size <output data-out="fontSize"></output></span>
+        <input type="range" min="24" max="240" step="2" data-setting="fontSize"></label>
+      <label class="row"><span>Line spacing <output data-out="lineHeight"></output></span>
+        <input type="range" min="1" max="2.4" step="0.05" data-setting="lineHeight"></label>
+      <label class="row"><span>Side margins <output data-out="margin"></output></span>
+        <input type="range" min="0" max="35" step="1" data-setting="margin"></label>
+      <label class="row inline"><span>Alignment</span>
+        <select data-setting="align">
+          <option value="left">Left</option><option value="center">Center</option>
+          <option value="right">Right</option><option value="justify">Justify</option>
+        </select></label>
+      <label class="row inline"><span>Font</span>
+        <select data-setting="fontFamily">
+          <option value="sans">Sans-serif</option><option value="serif">Serif</option>
+          <option value="rounded">Rounded</option><option value="mono">Monospace</option>
+        </select></label>
+      <label class="row inline"><span>Weight</span>
+        <select data-setting="fontWeight">
+          <option value="400">Regular</option><option value="600">Semibold</option>
+          <option value="700">Bold</option><option value="800">Heavy</option>
+        </select></label>
+      <label class="row check"><span>ALL CAPS</span><input type="checkbox" data-setting="uppercase"></label>
+
+      <h3>Display</h3>
+      <label class="row inline"><span>Theme</span>
+        <select data-setting="theme">
+          <option value="dark">Dark</option><option value="light">Light</option><option value="auto">Match system</option>
+        </select></label>
+      <label class="row check"><span>Mirror horizontally (for beam-splitter glass)</span><input type="checkbox" data-setting="mirrorX"></label>
+      <label class="row check"><span>Flip vertically</span><input type="checkbox" data-setting="mirrorY"></label>
+      <label class="row check"><span>Show reading marker</span><input type="checkbox" data-setting="showMarker"></label>
+      <label class="row"><span>Reading marker position <output data-out="markerPos"></output></span>
+        <input type="range" min="10" max="80" step="1" data-setting="markerPos"></label>
+      <label class="row check"><span>Fade text at top &amp; bottom</span><input type="checkbox" data-setting="edgeFade"></label>
+      <label class="row check"><span>Auto-hide controls while playing</span><input type="checkbox" data-setting="autoHide"></label>
+
+      <h3>Presentation clicker / keyboard</h3>
+      <label class="row inline"><span>Clicker next / previous</span>
+        <select data-setting="clickerMode">
+          <option value="speed">Faster / slower</option>
+          <option value="jump">Jump forward / back</option>
+          <option value="hybrid">Paused: jump · Playing: speed</option>
+        </select></label>
+      <table class="keys">
+        <tr><td>Next · PgDn · → · ↓</td><td>Faster (or jump, see above)</td></tr>
+        <tr><td>Prev · PgUp · ← · ↑</td><td>Slower (or jump back)</td></tr>
+        <tr><td>Space · Enter · B · . · F5</td><td>Play / pause</td></tr>
+        <tr><td>Esc</td><td>Pause</td></tr>
+        <tr><td>Home / End</td><td>Top / end of script</td></tr>
+        <tr><td>+ / −</td><td>Text size</td></tr>
+        <tr><td>M / V</td><td>Mirror / flip</td></tr>
+        <tr><td>T · F · E</td><td>Theme · fullscreen · editor</td></tr>
+      </table>
+
+      <h3>Game controller</h3>
+      <table class="keys">
+        <tr><td>A / ✕ · Start</td><td>Play / pause</td></tr>
+        <tr><td>B / ○</td><td>Pause</td></tr>
+        <tr><td>X / □ · Y / △</td><td>Jump back · jump forward</td></tr>
+        <tr><td>D-pad ↑ ↓ · RB / LB</td><td>Faster / slower (hold to repeat)</td></tr>
+        <tr><td>D-pad ← →</td><td>Text size</td></tr>
+        <tr><td>Sticks ↑ ↓</td><td>Scroll manually (analog)</td></tr>
+        <tr><td>RT / LT</td><td>Fast-forward / rewind (analog)</td></tr>
+        <tr><td>Select / View</td><td>Back to top</td></tr>
+      </table>
+      <p class="hint">Pair the controller with the iPad in Settings → Bluetooth, then press any button so the browser detects it.</p>
+
+      <h3>Touch</h3>
+      <p class="hint">Tap the text to play/pause. Drag up/down to reposition. Controls reappear whenever you pause.</p>
+
+      <button class="btn wide" data-action="resetSettings">Reset all settings</button>
+    </div>
+  </aside>
+
+  <script src="importers.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
